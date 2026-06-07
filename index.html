@@ -3,237 +3,240 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CYBER COMMAND OMNI-MATRIX v3 - DUAL SCAN</title>
-    <link rel="manifest" href="manifest.json">
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="theme-color" content="#0d1117">
+    <title>マイ頭脳版・AIスタックチャン</title>
     <style>
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-
-        html, body {
-            margin: 0; padding: 0; min-height: 100%; width: 100%;
-            background-color: #0d1117; overflow-x: hidden; overflow-y: auto;
-            font-family: 'Courier New', Courier, monospace, sans-serif;
+        body {
+            margin: 0;
+            background-color: #f1c40f;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: sans-serif;
+            overflow: hidden;
+            user-select: none;
         }
-
-        /* ▰▰▰ 二重走査線エフェクト ▰▰▰ */
-        /* 1. 静止縞（固定） */
-        body::before {
-            content: ""; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.3) 50%);
-            background-size: 100% 4px; pointer-events: none; z-index: 999;
+        #face {
+            width: 320px;
+            height: 220px;
+            background-color: #2c3e50;
+            border-radius: 40px;
+            position: relative;
+            box-shadow: 0 15px 30px rgba(0,0,0,0.4);
+            transition: background-color 0.3s;
         }
-        /* 2. 流れる光（動的） */
-        .scanline-flow {
-            position: fixed; top: -100px; left: 0; width: 100%; height: 100px;
-            background: linear-gradient(to bottom, transparent 0%, rgba(0, 255, 204, 0.15) 50%, transparent 100%);
-            animation: scan-flow 4s linear infinite; pointer-events: none; z-index: 1000;
+        .eye {
+            width: 50px;
+            height: 50px;
+            background-color: #00ffcc;
+            border-radius: 50%;
+            position: absolute;
+            top: 65px;
+            transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
-        @keyframes scan-flow { 0% { top: -100px; } 100% { top: 100%; } }
-
-        .container {
-            position: relative; z-index: 1; padding: 8px; width: 100%; max-width: 600px; margin: 0 auto;
-            display: flex; flex-direction: column;
-            border: 2px solid #005544; border-radius: 12px;
-            box-shadow: inset 0 0 30px rgba(0, 255, 204, 0.1);
-            background-color: rgba(13, 17, 23, 0.9);
+        #eye-left { left: 60px; }
+        #eye-right { right: 60px; }
+        #mouth {
+            width: 44px;
+            height: 20px;
+            background-color: #00ffcc;
+            position: absolute;
+            bottom: 55px;
+            left: 138px;
+            border-radius: 8px;
+            transition: all 0.1s ease;
         }
-
-        /* NAVI AI */
-        .navi-panel { background: rgba(255, 170, 0, 0.04); border: 1px solid rgba(255, 170, 0, 0.2); border-left: 4px solid #ffaa00; padding: 6px; margin-bottom: 5px; display: flex; gap: 8px; align-items: center; }
-        .navi-avatar { width: 32px; height: 32px; border: 2px solid #ffaa00; border-radius: 4px; display: flex; justify-content: center; align-items: center; background: rgba(0,0,0,0.2); flex-shrink: 0; }
-        .navi-eye { width: 18px; height: 5px; background: #ffaa00; box-shadow: 0 0 6px #ffaa00; animation: ai-pulse 1.5s infinite ease-in-out; }
-        @keyframes ai-pulse { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(0.2); opacity: 0.5; } }
-        .navi-text { font-size: 11px; color: #ffffff; font-weight: bold; }
-
-        /* グリッドとタイル */
-        .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 5px; margin-bottom: 5px; }
-        .tile { background: rgba(0, 255, 204, 0.02); border: 1px solid rgba(0, 85, 68, 0.3); border-left: 3px solid #00ffcc; padding: 5px 8px; display: flex; flex-direction: column; justify-content: center; }
-        .tile.full { grid-column: span 2; }
-        .tile.pink-mode { background: rgba(255, 0, 85, 0.02); border-color: rgba(255, 0, 85, 0.15); border-left-color: #ff0055; }
-        .tile.blue-mode { background: rgba(0, 150, 255, 0.02); border-color: rgba(0, 150, 255, 0.15); border-left-color: #0096ff; }
-        .tile.green-mode { background: rgba(57, 255, 20, 0.01); border-left-color: #39ff14; }
-        .label { font-size: 8px; color: #88a8a0; text-transform: uppercase; margin-bottom: 1px; letter-spacing: 0.5px; }
-        .value { font-size: 12px; color: #ffffff; font-weight: bold; }
-        .highlight { color: #39ff14; }
-        .chrono-display { display: flex; justify-content: space-between; align-items: center; gap: 5px; }
-
-        /* カレンダー */
-        .cal-matrix-title { font-size: 9px; color: #ff0055; font-weight: bold; text-align: center; margin-bottom: 3px; letter-spacing: 1px; }
-        .cal-matrix-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center; font-size: 9px; }
-        .cal-header { color: #88a8a0; font-weight: bold; border-bottom: 1px solid rgba(0,255,204,0.2); padding-bottom: 1px; }
-        .cal-day { color: rgba(255,255,255,0.6); padding: 1px 0; }
-        .cal-empty { opacity: 0.1; }
-        .cal-today { background: rgba(255, 0, 85, 0.2); border: 1px solid #ff0055; color: #ffffff; font-weight: bold; border-radius: 3px; animation: today-blink 1.5s infinite alternate; }
-        @keyframes today-blink { 0% { box-shadow: 0 0 2px rgba(255, 0, 85, 0.4); } 100% { box-shadow: 0 0 8px #ff0055; background: rgba(255, 0, 85, 0.3); } }
-
-        /* コントロールパネル */
-        .control-panel { background: rgba(0, 255, 204, 0.02); border: 1px solid rgba(0, 255, 204, 0.15); border-radius: 6px; padding: 8px; margin-bottom: 5px; }
-        .panel-title { font-size: 9px; color: #00ffcc; font-weight: bold; margin-bottom: 6px; letter-spacing: 1px; }
-        .ctrl-row { display: flex; gap: 6px; margin-bottom: 6px; align-items: center; }
-        .app-btn { flex: 1; padding: 6px 4px; background: rgba(0, 150, 255, 0.1); border: 1px solid #0096ff; color: #ffffff; font-size: 9px; font-weight: bold; text-align: center; cursor: pointer; border-radius: 4px; }
-        .app-btn:active { background: #0096ff; color: #0d1117; }
-        .app-btn.youtube { background: rgba(255,0,0,0.1); border-color: #ff3333; }
-        .app-btn.youtube:active { background: #ff3333; }
-        .cyber-slider { -webkit-appearance: none; width: 100%; height: 6px; background: #1a2332; border: 1px solid rgba(0,255,204,0.3); border-radius: 3px; outline: none; }
-        .cyber-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; background: #00ffcc; box-shadow: 0 0 6px #00ffcc; border-radius: 5px; cursor: pointer; }
-
-        /* ログ・アクション */
-        .log-panel { background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(0, 255, 204, 0.15); padding: 4px 8px; height: 40px; font-size: 9px; color: #00ffcc; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; margin-bottom: 4px; box-shadow: inset 0 0 10px rgba(0,0,0,0.8); }
-        .log-line { animation: log-fade 0.3s ease-out forwards; white-space: nowrap; }
-        @keyframes log-fade { from { opacity: 0; transform: translateY(5px); } to { opacity: 0.7; transform: translateY(0); } }
-        .action-area { margin-top: 2px; display: flex; gap: 4px; }
-        .btn { flex: 1; display: block; padding: 8px; background: rgba(0, 255, 204, 0.05); border: 1px solid #005544; color: #00ffcc; text-decoration: none; text-align: center; font-weight: bold; font-size: 10px; letter-spacing: 1px; cursor: pointer; }
-        .btn:active { background: #00ffcc; color: #0d1117; }
+        #controls {
+            margin-top: 20px;
+            text-align: center;
+            width: 90%;
+            max-width: 400px;
+        }
+        button {
+            padding: 12px 25px;
+            font-size: 18px;
+            font-weight: bold;
+            background-color: #e74c3c;
+            color: white;
+            border: none;
+            border-radius: 30px;
+            cursor: pointer;
+            box-shadow: 0 5px 10px rgba(0,0,0,0.2);
+            transition: transform 0.1s, background-color 0.2s;
+        }
+        button:active { transform: scale(0.95); }
+        #status {
+            margin-top: 15px;
+            color: #2c3e50;
+            font-weight: bold;
+            font-size: 15px;
+            min-height: 24px;
+            background: rgba(255,255,255,0.3);
+            padding: 8px 15px;
+            border-radius: 15px;
+            word-break: break-all;
+        }
+        #key-area {
+            margin-top: 15px;
+            background: rgba(0,0,0,0.1);
+            padding: 10px;
+            border-radius: 10px;
+        }
+        #key-input {
+            padding: 8px;
+            width: 70%;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            font-size: 12px;
+        }
     </style>
 </head>
 <body>
 
-<div class="scanline-flow"></div>
-<div class="container">
-    <div class="navi-panel">
-        <div class="navi-avatar"><div class="navi-eye"></div></div>
-        <div class="navi-dialogue">
-            <div style="font-size: 8px; color: #ffaa00; font-weight: bold;">NAVI_SYSTEM CORE</div>
-            <div class="navi-text" id="navi-message">INTERACTIVE CONTROL CHANNELS OPEN.</div>
-        </div>
+    <div id="face">
+        <div id="eye-left" class="eye"></div>
+        <div id="eye-right" class="eye"></div>
+        <div id="mouth"></div>
     </div>
 
-    <div class="grid">
-        <div class="tile full pink-mode">
-            <span class="label" style="color: #ff0055;">MAIN CHRONOGRAPH</span>
-            <div class="chrono-display">
-                <span class="value" id="cal-display" style="color: #39ff14; font-size: 13px;">0000.00.00 ___</span>
-                <span class="value" id="time-display" style="font-size: 16px; letter-spacing: 1px;">00:00:00</span>
-            </div>
-        </div>
-        <div class="tile full pink-mode" style="padding: 6px;">
-            <div class="cal-matrix-title" id="cal-matrix-month-title">TARGET MONTH MATRIX</div>
-            <div class="cal-matrix-grid" id="cal-matrix-render"></div>
-        </div>
-        <div class="tile blue-mode"><span class="label" style="color: #0096ff;">UTC: LONDON</span><span class="value" id="world-london" style="color: #0096ff;">00:00</span></div>
-        <div class="tile blue-mode"><span class="label" style="color: #0096ff;">EST: NEWYORK</span><span class="value" id="world-ny" style="color: #0096ff;">00:00</span></div>
-        <div class="tile"><span class="label">MOON AGE</span><span class="value" id="cosmic-moon" style="color: #ffffaa;">AGE: --.-</span></div>
-        <div class="tile"><span class="label">NET ENCRYPTION</span><span class="value" id="net-val">STABLE</span></div>
-        <div class="tile green-mode"><span class="label">TOKYO TEMP</span><span class="value highlight" id="api-temp">FETCHING..</span></div>
-        <div class="tile green-mode"><span class="label">WIND SPEED</span><span class="value highlight" id="api-wind">FETCHING..</span></div>
-        <div class="tile"><span class="label">TARGET OS</span><span class="value" id="os-val">SCANNING</span></div>
-        <div class="tile"><span class="label">ENGINE</span><span class="value" id="br-val">SCANNING</span></div>
-        <div class="tile full"><span class="label">VIEWPORT RESOLUTION</span><span class="value highlight" id="res-val">0 x 0 Px</span></div>
-        <div class="tile"><span class="label">BATTERY</span><span class="value" id="bat-val">N/A</span></div>
-        <div class="tile"><span class="label">MEMORY SPACE</span><span class="value" id="mem-val">DYNAMIC</span></div>
-    </div>
-    
-    <div class="control-panel">
-        <div class="panel-title">[ HARDWARE INTEGRATION PANEL ]</div>
-        <div class="ctrl-row">
-            <div class="slider-container" style="flex:1;">
-                <div class="slider-label-spec" style="display:flex; justify-content:space-between; font-size:8px; color:#88a8a0;"><span>🔊 AUDIO_VOLUME</span><span id="vol-lbl">50%</span></div>
-                <input type="range" class="cyber-slider" id="vol-slider" min="0" max="100" value="50" oninput="controlHardware('volume', this.value)">
-            </div>
-            <div class="slider-container" style="flex:1;">
-                <div class="slider-label-spec" style="display:flex; justify-content:space-between; font-size:8px; color:#88a8a0;"><span>🔆 SCREEN_BRIGHTNESS</span><span id="bri-lbl">70%</span></div>
-                <input type="range" class="cyber-slider" id="bri-slider" min="0" max="100" value="70" oninput="controlHardware('brightness', this.value)">
-            </div>
-        </div>
-        <div class="panel-title" style="margin-top: 8px;">[ QUICK APP COMMAND LAUNCHER ]</div>
-        <div class="ctrl-row">
-            <div class="app-btn" onclick="launchApp('google')">🔍 Google</div>
-            <div class="app-btn youtube" onclick="launchApp('youtube')">📺 YouTube</div>
-            <div class="app-btn" style="background:rgba(57,255,20,0.1); border-color:#39ff14;" onclick="launchApp('maps')">🗺️ Maps</div>
-        </div>
-    </div>
-    <div class="log-panel" id="log-box"></div>
-    <div class="action-area">
-        <a href="intent:#Intent;action=android.settings.SETTINGS;end" class="btn">> MAIN_SETTINGS <</a>
-        <a href="intent:#Intent;action=android.settings.DISPLAY_SETTINGS;end" class="btn" style="border-color:#0096ff; color:#0096ff;">> DISPLAY_SYS <</a>
-    </div>
-</div>
-
-<script>
-    // 1. 基本ロジック（時刻・カレンダー）
-    function syncChronograph() {
-        const now = new Date();
-        document.getElementById('time-display').textContent = now.toLocaleTimeString('ja-JP', { hour12: false });
-        const days = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
-        document.getElementById('cal-display').textContent = `${now.getFullYear()}.${String(now.getMonth()+1).padStart(2,'0')}.${String(now.getDate()).padStart(2,'0')} ${days[now.getDay()]}`;
+    <div id="controls">
+        <button id="talk-btn">話しかける</button>
+        <div id="status">APIキーを入力して「保存」を押してね</div>
         
-        // 世界時計
-        try {
-            document.getElementById('world-london').textContent = now.toLocaleTimeString('ja-JP', { timeZone: 'Europe/London', hour: '2-digit', minute: '2-digit', hour12: false });
-            document.getElementById('world-ny').textContent = now.toLocaleTimeString('ja-JP', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: false });
-        } catch(e) {}
-    }
-    setInterval(syncChronograph, 500); syncChronograph();
+        <div id="key-area">
+            <input type="password" id="key-input" placeholder="AIzaSy...（Gemini APIキー）">
+            <button id="save-key-btn" style="padding: 6px 12px; font-size: 12px; background-color: #34495e;">保存</button>
+        </div>
+    </div>
 
-    function renderMatrixCalendar() {
-        const now = new Date(); const currentYear = now.getFullYear(); const currentMonth = now.getMonth(); const todayDate = now.getDate();
-        document.getElementById('cal-matrix-month-title').textContent = `[ ${currentYear} / ${String(currentMonth + 1).padStart(2, '0')} CALENDAR MATRIX ]`;
-        const container = document.getElementById('cal-matrix-render');
-        if(!container) return;
-        container.innerHTML = '';
-        ['SU','MO','TU','WE','TH','FR','SA'].forEach(w => { const h = document.createElement('div'); h.className = 'cal-header'; h.textContent = w; container.appendChild(h); });
-        const firstDay = new Date(currentYear, currentMonth, 1).getDay(); const totalDays = new Date(currentYear, currentMonth + 1, 0).getDate();
-        for (let i = 0; i < firstDay; i++) { const e = document.createElement('div'); e.className = 'cal-day cal-empty'; e.textContent = '--'; container.appendChild(e); }
-        for (let day = 1; day <= totalDays; day++) {
-            const cell = document.createElement('div'); cell.className = 'cal-day'; cell.textContent = String(day).padStart(2, '0');
-            if (day === todayDate) cell.classList.add('cal-today');
-            container.appendChild(cell);
+    <script>
+        const talkBtn = document.getElementById('talk-btn');
+        const statusText = document.getElementById('status');
+        const mouth = document.getElementById('mouth');
+        const eyeLeft = document.getElementById('eye-left');
+        const eyeRight = document.getElementById('eye-right');
+        const keyInput = document.getElementById('key-input');
+        const saveKeyBtn = document.getElementById('save-key-btn');
+
+        // ブラウザの秘密の記憶領域からキーを読み込む
+        let myApiKey = localStorage.getItem('STACKJAN_GEMINI_KEY') || '';
+        if (myApiKey) {
+            keyInput.value = myApiKey;
+            statusText.innerText = "本物のAIがロードされたよ！お話ししよう！";
         }
-    }
-    renderMatrixCalendar();
 
-    // 2. 統合・APIロジック
-    async function updateSystemData() {
-        // 天気API
-        try {
-            const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=35.68&longitude=139.69&current=temperature_2m,wind_speed_10m');
-            const data = await res.json();
-            document.getElementById('api-temp').textContent = data.current.temperature_2m + '°C';
-            document.getElementById('api-wind').textContent = data.current.wind_speed_10m + ' m/s';
-        } catch(e) { console.warn("API Error"); }
+        // キーの保存処理（あなたのスマホ・PC内にだけ記憶され、ネットには漏れません）
+        saveKeyBtn.addEventListener('click', () => {
+            const token = keyInput.value.trim();
+            if (!token) {
+                alert('キーを入力してください');
+                return;
+            }
+            localStorage.setItem('STACKJAN_GEMINI_KEY', token);
+            myApiKey = token;
+            statusText.innerText = "キーを記憶したよ！お話ししよう！";
+            alert('APIキーをブラウザに安全に保存しました。');
+        });
 
-        // バッテリー
-        if(navigator.getBattery) {
-            const bat = await navigator.getBattery();
-            document.getElementById('bat-val').textContent = Math.round(bat.level*100) + '%';
+        // まばたき
+        setInterval(() => {
+            const currentHeight = eyeLeft.style.height;
+            if(currentHeight && currentHeight !== '50px') return; 
+            eyeLeft.style.height = '5px'; eyeRight.style.height = '5px';
+            setTimeout(() => { eyeLeft.style.height = '50px'; eyeRight.style.height = '50px'; }, 150);
+        }, 4000);
+
+        // 音声認識
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            statusText.innerText = "ブラウザが音声認識に対応していません。";
+        } else {
+            const recognition = new SpeechRecognition();
+            recognition.lang = 'ja-JP';
+
+            talkBtn.addEventListener('click', () => {
+                if(!myApiKey) {
+                    alert('先に下の欄にAPIキーを入力して「保存」を押してね！');
+                    return;
+                }
+                recognition.start();
+                statusText.innerText = "きいているよ...👂";
+                talkBtn.style.backgroundColor = "#2ecc71";
+            });
+
+            recognition.onresult = async (event) => {
+                const userSpeech = event.results[0][0].transcript;
+                statusText.innerText = `AI思考中...🤔 (${userSpeech})`;
+                talkBtn.style.backgroundColor = "#e74c3c";
+                
+                await generateRealAIResponse(userSpeech);
+            };
+
+            recognition.onerror = () => {
+                statusText.innerText = "聞き取れなかったよ。もう一度押してね。";
+                talkBtn.style.backgroundColor = "#e74c3c";
+            };
         }
-        // メモリ
-        if(performance.memory) {
-            document.getElementById('mem-val').textContent = Math.round(performance.memory.usedJSHeapSize / 1048576) + ' MB';
+
+        // 最新仕様の通信処理
+        async function generateRealAIResponse(userInput) {
+            try {
+                const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${myApiKey}`;
+                
+                const requestBody = {
+                    contents: [{
+                        role: "user",
+                        parts: [{ text: `指示：あなたは『スタックチャン』という名前の可愛いロボットAIです。ユーザーの友達として、親しみやすく短くフレンドリーに日本語で回答してください。必ず語尾に『だよ』『なのだ』『ね！』などを混ぜた可愛いタメ口にし、1文か2文（35文字以内）で簡潔に答えること。\n\nユーザーの発言：${userInput}` }]
+                    }],
+                    generationConfig: { maxOutputTokens: 60, temperature: 0.7 }
+                };
+
+                const response = await fetch(endpoint, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(requestBody)
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    statusText.innerText = `Googleエラー: ${data.error.message}`;
+                    return;
+                }
+
+                let replyText = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "";
+
+                if (!replyText) {
+                    statusText.innerText = "AIの返答が空っぽだったよ。もう一度試してね。";
+                    return;
+                }
+
+                statusText.innerText = `スタックチャン: ${replyText}`;
+                speak(replyText);
+            } catch (e) {
+                statusText.innerText = `エラー: 通信に失敗したのだ。`;
+                console.error(e);
+            }
         }
-        // OS/ブラウザ
-        document.getElementById('os-val').textContent = navigator.platform;
-        document.getElementById('br-val').textContent = navigator.vendor || "GENERIC";
-    }
-    setInterval(updateSystemData, 10000); updateSystemData();
 
-    // 3. コントロール系
-    function controlHardware(type, value) {
-        if(type === 'volume') { document.getElementById('vol-lbl').textContent = value + "%"; printLog(`VOLUME LEVEL CHANGED TO [ ${value}% ]`); }
-        else if(type === 'brightness') { document.getElementById('bri-lbl').textContent = value + "%"; printLog(`BRIGHTNESS LEVEL SET TO [ ${value}% ]`); document.body.style.filter = `brightness(${0.4 + (value/100)*0.6})`; }
-    }
+        // 音声合成と口パク
+        function speak(text) {
+            const uttr = new SpeechSynthesisUtterance(text);
+            uttr.lang = 'ja-JP'; uttr.pitch = 1.3; uttr.rate = 1.15;
 
-    function launchApp(target) {
-        printLog(`LAUNCHING APP COMMAND: [ ${target.toUpperCase()} ]`);
-        if(target === 'google') window.open('https://www.google.com', '_blank');
-        else if(target === 'youtube') window.location.href = "intent://www.youtube.com/#Intent;scheme=http;package=com.google.android.youtube;end";
-        else if(target === 'maps') window.location.href = "intent://maps.google.com/#Intent;scheme=https;package=com.google.android.apps.maps;end";
-    }
+            let mouthInterval = setInterval(() => {
+                const randomHeight = Math.floor(Math.random() * 35) + 5;
+                mouth.style.height = `${randomHeight}px`;
+                mouth.style.transform = `translateY(${(20 - randomHeight) / 2}px)`;
+            }, 80);
 
-    // ログシステム
-    const logBox = document.getElementById('log-box');
-    function printLog(text) {
-        const line = document.createElement('div'); line.className = 'log-line'; line.textContent = `>> ${text}`;
-        logBox.appendChild(line); if (logBox.children.length > 3) logBox.removeChild(logBox.children[0]);
-    }
-
-    // 初期化・リスナー
-    window.addEventListener('resize', () => document.getElementById('res-val').textContent = `${window.innerWidth} x ${window.innerHeight} Px`);
-    window.dispatchEvent(new Event('resize'));
-    document.getElementById('cosmic-moon').textContent = `AGE: ${(((new Date().getFullYear()-2000)*11)+new Date().getMonth()+1+new Date().getDate())%30}.2 / 29.5`;
-    printLog("CONTROLLER ACTIVE. ALL LINKS PREPARED.");
-</script>
+            uttr.onend = () => {
+                clearInterval(mouthInterval);
+                mouth.style.height = "20px"; mouth.style.transform = "translateY(0px)";
+            };
+            window.speechSynthesis.speak(uttr);
+        }
+    </script>
 </body>
 </html>
