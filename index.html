@@ -182,7 +182,7 @@
         // 最新仕様の通信処理
         async function generateRealAIResponse(userInput) {
             try {
-                const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${myApiKey}`;
+                const endpoint = `https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=${myApiKey}`;
                 
                 const requestBody = {
                     contents: [{
