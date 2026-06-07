@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>AI SAUSAGE Ultimate (Multi-API)</title>
+<title>AI SAUSAGE Ultimate Hybrid</title>
 <style>
 :root{
   --bg:#10151d;
@@ -199,7 +199,7 @@ select {
 
 <div id="settings">
   <h3>設定</h3>
-  <input type="password" id="apiKey" placeholder="選択したモデルのAPI Keyを入力">
+  <input type="password" id="apiKey" placeholder="API Keyを入力">
   <div class="settingRow">
     <button id="saveKeyBtn">保存</button>
     <button id="testKeyBtn">接続テスト</button>
@@ -230,15 +230,8 @@ const settingsDiv = document.getElementById('settings');
 /* ======================
    STATE MANAGEMENT
 ====================== */
-// モデルの選択状態を管理
-let currentModel = localStorage.getItem('SAUSAGE_CURRENT_MODEL') || 'gemini-2.0-flash';
-
-// APIキーはそれぞれのサービスごとに別々で保存する
 let GEMINI_KEY = localStorage.getItem('SAUSAGE_GEMINI_KEY') || '';
 let GROQ_KEY = localStorage.getItem('SAUSAGE_GROQ_KEY') || '';
-
-// 現在選択されているモデルに合わせて入力欄の初期値を決める
-apiKeyInput.value = (currentModel === 'gemini-2.0-flash') ? GEMINI_KEY : GROQ_KEY;
 
 let listening = false;
 let speaking = false;
@@ -247,6 +240,9 @@ let mouthTimer = null;
 
 let voiceEnabled = JSON.parse(localStorage.getItem('SAUSAGE_VOICE') || 'true');
 let continuousMode = false;
+
+// 選択中のAIプロバイダー（'gemini' or 'groq'）
+let currentProvider = localStorage.getItem('SAUSAGE_PROVIDER') || 'gemini';
 
 let conversationHistory = JSON.parse(localStorage.getItem('SAUSAGE_HISTORY') || '[]');
 let chatMemory = JSON.parse(localStorage.getItem('SAUSAGE_MEMORY') || '[]');
@@ -258,19 +254,19 @@ const voiceToggle = document.createElement('button');
 voiceToggle.textContent = voiceEnabled ? '🔊音声ON' : '🔇音声OFF';
 settingRow.appendChild(voiceToggle);
 
-// 【変更】GeminiとGroq(Llama3)を切り替えられるセレクトボックスを作成
+// モデル選択（プロバイダー選択）要素の作成
 const modelSelect = document.createElement('select');
 
 const optGemini = document.createElement('option');
-optGemini.value = 'gemini-2.0-flash';
-optGemini.textContent = 'Gemini 2.0 Flash';
-if(currentModel === 'gemini-2.0-flash') optGemini.selected = true;
+optGemini.value = 'gemini';
+optGemini.textContent = 'gemini-2.0-flash';
+if(currentProvider === 'gemini') optGemini.selected = true;
 modelSelect.appendChild(optGemini);
 
 const optGroq = document.createElement('option');
-optGroq.value = 'groq/llama3-8b';
-optGroq.textContent = 'Groq (Llama 3 8B)';
-if(currentModel === 'groq/llama3-8b') optGroq.selected = true;
+optGroq.value = 'groq';
+optGroq.textContent = 'llama3.1-8b-instant';
+if(currentProvider === 'groq') optGroq.selected = true;
 modelSelect.appendChild(optGroq);
 
 settingRow.appendChild(modelSelect);
@@ -285,13 +281,17 @@ exportBtn.style.width = '100%';
 exportBtn.style.marginTop = '8px';
 settingsDiv.appendChild(exportBtn);
 
-// モデルが変更されたら、入力されているキーの表示を切り替える
-modelSelect.addEventListener('change', () => {
-  currentModel = modelSelect.value;
-  localStorage.setItem('SAUSAGE_CURRENT_MODEL', currentModel);
-  apiKeyInput.value = (currentModel === 'gemini-2.0-flash') ? GEMINI_KEY : GROQ_KEY;
-  statusBox.textContent = `${modelSelect.options[modelSelect.selectedIndex].text} が選択されました`;
-});
+// 初期表示時の入力欄のプレースホルダーと値の制御
+function updateKeyInputDisplay() {
+  if (modelSelect.value === 'gemini') {
+    apiKeyInput.value = GEMINI_KEY;
+    apiKeyInput.placeholder = "Gemini API Key (AIzaSy...)";
+  } else {
+    apiKeyInput.value = GROQ_KEY;
+    apiKeyInput.placeholder = "Groq API Key (gsk_...)";
+  }
+}
+updateKeyInputDisplay();
 
 /* ======================
    FACE ANIMATIONS & EMOTIONS
@@ -361,90 +361,121 @@ function addMemory(role, text) {
   saveMemory();
 }
 
-function buildPrompt(userText) {
+/* ======================
+   PROMPT BUILDERS
+====================== */
+function buildGeminiPrompt(userText) {
   let history = '';
   chatMemory.forEach(msg => {
-    history += `${msg.role}: ${msg.text}\n`;
+    // Groq形式のrole名を変換
+    const r = (msg.role === 'assistant' || msg.role === 'stackchan' || msg.role === 'sausage') ? 'sausage' : 'user';
+    history += `${r}: ${msg.text}\n`;
   });
   return `あなたはSAUSAGEです。明るく親しみやすい友達です。返答は日本語。50文字以内。\n\n会話履歴:\n${history}\nユーザー:\n${userText}`;
 }
 
+function buildGroqMessages(userText) {
+  let messages = [
+    { role: 'system', content: 'あなたはSAUSAGEです。明るく親しみやすい友達です。返答は日本語。50文字以内。' }
+  ];
+  chatMemory.forEach(msg => {
+    const r = (msg.role === 'stackchan' || msg.role === 'sausage' || msg.role === 'assistant') ? 'assistant' : 'user';
+    messages.push({ role: r, content: msg.text });
+  });
+  messages.push({ role: 'user', content: userText });
+  return messages;
+}
+
 /* ======================
-   UNIVERSAL AI COMMUNICATOR (SWITCH ROUTER)
+   UNIVERSAL API COMMUNICATOR
 ====================== */
-async function askGeminiMemory(userText) {
-  // 現在アクティブなAPIキーを取得
-  const activeKey = (currentModel === 'gemini-2.0-flash') ? GEMINI_KEY : GROQ_KEY;
-
-  if(!activeKey) {
-    statusBox.textContent = 'APIキーが未設定です';
-    emotionError();
-    return null;
+async function askAI(userText) {
+  const provider = modelSelect.value;
+  
+  if(provider === 'gemini') {
+    if(!GEMINI_KEY) { statusBox.textContent = 'Gemini APIキー未設定'; emotionError(); return null; }
+    return await askGemini(userText);
+  } else {
+    if(!GROQ_KEY) { statusBox.textContent = 'Groq APIキー未設定'; emotionError(); return null; }
+    return await askGroq(userText);
   }
+}
 
+// Gemini通信用
+async function askGemini(userText) {
   try {
     emotionThinking();
-    statusBox.textContent = '考え中...';
+    statusBox.textContent = '考え中(Gemini)...';
 
-    let response;
-    let reply = '';
-
-    if (currentModel === 'gemini-2.0-flash') {
-      /* --- Gemini API 呼び出し --- */
-      response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:generateContent?key=${activeKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: buildPrompt(userText) }] }],
-            generationConfig: { temperature: 0.9, maxOutputTokens: 80 }
-          })
-        }
-      );
-
-      if(!response.ok) {
-        let details = '';
-        try { const errData = await response.json(); details = errData.error?.message || ''; } catch(_) {}
-        throw new Error(`HTTP ${response.status} ${details}`.trim());
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: buildGeminiPrompt(userText) }] }],
+          generationConfig: { temperature: 0.9, maxOutputTokens: 80 }
+        })
       }
+    );
 
-      const data = await response.json();
-      reply = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-
-    } else if (currentModel === 'groq/llama3-8b') {
-      /* --- Groq API (OpenAI 互換形式) 呼び出し --- */
-      response = await fetch(
-        `https://api.groq.com/openai/v1/chat/completions`,
-        {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${activeKey}`
-          },
-          body: JSON.stringify({
-            model: 'llama3-8b-8192', // Groq側でのLlama3指定ID
-            messages: [{ role: 'user', content: buildPrompt(userText) }],
-            max_tokens: 80,
-            temperature: 0.9
-          })
-        }
-      );
-
-      if(!response.ok) {
-        let details = '';
-        try { const errData = await response.json(); details = errData.error?.message || ''; } catch(_) {}
-        throw new Error(`HTTP ${response.status} ${details}`.trim());
-      }
-
-      const data = await response.json();
-      reply = data?.choices?.[0]?.message?.content?.trim();
+    if(!response.ok) {
+      let details = '';
+      try { const errData = await response.json(); details = errData.error?.message || ''; } catch(_) {}
+      throw new Error(`HTTP ${response.status} ${details}`.trim());
     }
 
+    const data = await response.json();
+    const reply = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
     if(!reply) throw new Error('返答データが空です');
 
     addMemory('user', userText);
     addMemory('sausage', reply);
+    return reply;
+
+  } catch(err) {
+    console.error(err);
+    statusBox.textContent = '通信エラー: ' + err.message;
+    emotionError();
+    return null;
+  }
+}
+
+// Groq通信用
+async function askGroq(userText) {
+  try {
+    emotionThinking();
+    statusBox.textContent = '考え中(Groq)...';
+
+    const response = await fetch(
+      'https://api.groq.com/openai/v1/chat/completions',
+      {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${GROQ_KEY}`
+        },
+        body: JSON.stringify({
+          model: 'llama3.1-8b-instant',
+          messages: buildGroqMessages(userText),
+          temperature: 0.9,
+          max_tokens: 80
+        })
+      }
+    );
+
+    if(!response.ok) {
+      let details = '';
+      try { const errData = await response.json(); details = errData.error?.message || ''; } catch(_) {}
+      throw new Error(`HTTP ${response.status} ${details}`.trim());
+    }
+
+    const data = await response.json();
+    const reply = data?.choices?.[0]?.message?.content?.trim();
+    if(!reply) throw new Error('返答データが空です');
+
+    addMemory('user', userText);
+    addMemory('assistant', reply);
     return reply;
 
   } catch(err) {
@@ -525,7 +556,7 @@ if(SpeechRecognition) {
     addMessage('user', `あなた: ${userText}`);
     pushHistory('user', `あなた: ${userText}`);
 
-    const reply = await askGeminiMemory(userText);
+    const reply = await askAI(userText);
     if(!reply) return;
 
     addMessage('ai', `SAUSAGE: ${reply}`);
@@ -558,10 +589,19 @@ if(SpeechRecognition) {
 /* ======================
    UI EVENT LISTENERS
 ====================== */
+// モデルセレクトボックス切り替え時
+modelSelect.addEventListener('change', () => {
+  currentProvider = modelSelect.value;
+  localStorage.setItem('SAUSAGE_PROVIDER', currentProvider);
+  updateKeyInputDisplay();
+  statusBox.textContent = `${modelSelect.options[modelSelect.selectedIndex].text} モードに切り替えました`;
+});
+
+// 話しかけるボタン
 talkBtn.addEventListener('click', () => {
   if(!recognition) return alert('音声認識に対応していません');
-  const activeKey = (currentModel === 'gemini-2.0-flash') ? GEMINI_KEY : GROQ_KEY;
-  if(!activeKey) return alert('APIキーを設定してください');
+  const currentKey = (modelSelect.value === 'gemini') ? GEMINI_KEY : GROQ_KEY;
+  if(!currentKey) return alert('選択中モデルのAPIキーを設定してください');
   if(listening) return;
 
   try {
@@ -575,6 +615,7 @@ talkBtn.addEventListener('click', () => {
   }
 });
 
+// 停止ボタン
 stopBtn.addEventListener('click', () => {
   window.speechSynthesis.cancel();
   if(recognition) {
@@ -587,6 +628,7 @@ stopBtn.addEventListener('click', () => {
   statusBox.textContent = '停止しました';
 });
 
+// 履歴削除ボタン
 clearBtn.addEventListener('click', () => {
   if(!confirm('履歴を削除しますか？')) return;
   conversationHistory = [];
@@ -597,46 +639,52 @@ clearBtn.addEventListener('click', () => {
   statusBox.textContent = '履歴を削除しました';
 });
 
-// キーの保存処理もモデルごとに切り分ける
+// APIキー保存
 saveKeyBtn.addEventListener('click', () => {
   const key = apiKeyInput.value.trim();
   if(!key) return alert('APIキーを入力してください');
 
-  if (currentModel === 'gemini-2.0-flash') {
+  if(modelSelect.value === 'gemini') {
+    GEMINI_KEY = key;
+    localStorage.setItem('SAUSAGE_GEMINI_KEY', key);
+    statusBox.textContent = 'Gemini APIキーを保存しました';
+  } else {
+    GROQ_KEY = key;
+    localStorage.setItem('SAUSAGE_GROQ_KEY', key);
+    statusBox.textContent = 'Groq APIキーを保存しました';
+  }
+  emotionHappy();
+});
+
+// 接続テストボタン
+testKeyBtn.addEventListener('click', async () => {
+  const key = apiKeyInput.value.trim();
+  if(!key) return alert('APIキーを入力してください');
+
+  if(modelSelect.value === 'gemini') {
     GEMINI_KEY = key;
     localStorage.setItem('SAUSAGE_GEMINI_KEY', key);
   } else {
     GROQ_KEY = key;
     localStorage.setItem('SAUSAGE_GROQ_KEY', key);
   }
-  statusBox.textContent = 'APIキーを保存しました';
-  emotionHappy();
-});
-
-testKeyBtn.addEventListener('click', async () => {
-  const key = apiKeyInput.value.trim();
-  if(!key) return alert('APIキーを入力してください');
-
-  if (currentModel === 'gemini-2.0-flash') {
-    GEMINI_KEY = key;
-  } else {
-    GROQ_KEY = key;
-  }
-  statusBox.textContent = '接続確認中...';
   
-  const result = await askGeminiMemory('こんにちは');
+  statusBox.textContent = '接続確認中...';
+  const result = await askAI('こんにちは');
   if(result) {
     statusBox.textContent = '接続成功: ' + result;
     emotionHappy();
   }
 });
 
+// 音声トグル
 voiceToggle.onclick = () => {
   voiceEnabled = !voiceEnabled;
   localStorage.setItem('SAUSAGE_VOICE', JSON.stringify(voiceEnabled));
   voiceToggle.textContent = voiceEnabled ? '🔊音声ON' : '🔇音声OFF';
 };
 
+// 連続会話トグル
 continuousBtn.onclick = () => {
   continuousMode = !continuousMode;
   continuousBtn.textContent = continuousMode ? '連続会話ON' : '連続会話OFF';
@@ -645,6 +693,7 @@ continuousBtn.onclick = () => {
   }
 };
 
+// 履歴エクスポート
 exportBtn.onclick = () => {
   const blob = new Blob([JSON.stringify(conversationHistory, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -680,9 +729,9 @@ window.addEventListener('load', () => {
     statusBox.textContent = warnings.join(' / ');
     faceError();
   } else {
-    const activeKey = (currentModel === 'gemini-2.0-flash') ? GEMINI_KEY : GROQ_KEY;
-    if(activeKey) {
-      statusBox.textContent = '起動完了！準備OKだよ';
+    const currentKey = (modelSelect.value === 'gemini') ? GEMINI_KEY : GROQ_KEY;
+    if(currentKey) {
+      statusBox.textContent = 'ハイブリッド起動完了！準備OKだよ';
       emotionHappy();
     } else {
       statusBox.textContent = 'APIキーを入力してください';
@@ -690,7 +739,7 @@ window.addEventListener('load', () => {
   }
 });
 
-console.log('AI SAUSAGE Ultimate Complete v5 (Multi-API Ready)');
+console.log('AI SAUSAGE Ultimate Hybrid Edition v2 (Optimized)');
 </script>
 </body>
 </html>
